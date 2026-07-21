@@ -1,48 +1,3 @@
-/*
-  VaniGrow v2 - VPD-based Fungal Risk Monitoring for Vanilla Greenhouse
-  Board   : ESP32 DevKit V1 (Wokwi simulation)
-  Sensors : DHT22 (air temp & humidity)
-            MLX90614 (non-contact IR, canopy/leaf surface temperature)
-            Potentiometer (soil moisture sim), LDR/Photoresistor (light)
-  Display : SSD1306 OLED 128x64 I2C (3-page menu via pushbutton)
-  Actuator: LED merah (alert), LED hijau (fan/dehumidifier), Servo (vent flap)
-  Comm    : MQTT (publish sensor data + VPD, subscribe manual override)
-
-  Core logic: Leaf-to-Air VPD
-  VPD (Vapor Pressure Deficit) = SVP(leaf) - AVP(air)
-    SVP(T) = 0.6108 * exp(17.27*T / (T+237.3))   [Tetens formula, kPa]
-    AVP(air) = SVP(air_temp) * RH/100
-
-  Leaf temperature diukur langsung pakai MLX90614 (bukan estimasi offset),
-  supaya VPD merefleksikan kondisi permukaan daun yang sebenarnya -
-  itu tempat kondensasi/embun terbentuk dan spora jamur berkecambah.
-
-  Fungal risk TIDAK dihitung dari VPD sesaat saja, tapi dari akumulasi
-  DURASI VPD berada di zona rendah (leaky-bucket accumulator):
-    - VPD < 0.4 kPa   -> zona rawan, akumulasi risk bertambah
-    - VPD < 0.2 kPa   -> zona kritis, akumulasi 2x lebih cepat
-    - VPD >= 0.4 kPa  -> kondisi sehat, akumulasi meluruh (decay), bukan reset instan
-  Level akhir: LOW / MEDIUM (>=5 "menit" akumulasi) / HIGH (>=15 "menit")
-  Soil moisture >80% menaikkan 1 level (kompensasi risiko busuk akar/media).
-
-  Catatan DEMO_MODE: supaya bisa diuji cepat di Wokwi, 1 "menit" logis
-  dipadatkan jadi 1 detik nyata. Set DEMO_MODE ke false untuk skala waktu asli.
-
-  FIX v2.1:
-  - Light sensor (LDR) mapping dibalik: map(raw, 0, 4095, 100, 0)
-    LDR = resistansi TURUN saat terang → tegangan ADC NAIK saat GELAP
-    (voltage divider: VCC -- LDR -- node(AO) -- GND)
-    Sebelumnya: gelap=96%, terang=3% ← SALAH
-    Sekarang  : gelap~0%,  terang~100% ← BENAR
-
-  FIX v2.2:
-  - MLX90614 fallback: kalau baca 0°C atau tidak wajar (<5°C),
-    g_leafTemp di-set ke g_airTemp supaya VPD tidak negatif palsu.
-    (Wokwi default MLX object temp = 0°C sebelum slider digerak)
-  - Button debounce: tambah g_buttonConfirmed supaya page change
-    hanya terpicu sekali per tekan, bukan looping tiap loop().
-*/
-
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
@@ -63,13 +18,12 @@
 #define LED_FAN_PIN   26
 #define SERVO_PIN     27
 #define BUTTON_PIN    32
-// MLX90614 & SSD1306 share the I2C bus: SDA=D21, SCL=D22 (different addresses)
 
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET    -1
 
-// WiFi & MQTT Configuration
+// ---------------- WiFi & MQTT ----------------
 const char* WIFI_SSID = "Wokwi-GUEST";
 const char* WIFI_PASS = "";
 
@@ -81,21 +35,21 @@ String TOPIC_DATA   = "vanigrow/" + String(DEVICE_ID) + "/data";
 String TOPIC_STATUS = "vanigrow/" + String(DEVICE_ID) + "/status";
 String TOPIC_CMD    = "vanigrow/" + String(DEVICE_ID) + "/cmd";
 
-// VPD / Risk Model Configuration
+// ---------------- VPD / Risk Model ----------------
 #define DEMO_MODE true
 
 const float VPD_LOW_THRESHOLD      = 0.4;
 const float VPD_CRITICAL_THRESHOLD = 0.2;
 
 #if DEMO_MODE
-  const unsigned long TIME_UNIT_MS = 1000UL;     // 1 "menit" logis = 1 detik nyata
+  const unsigned long TIME_UNIT_MS = 1000UL;
 #else
-  const unsigned long TIME_UNIT_MS = 60000UL;    // 1 menit nyata
+  const unsigned long TIME_UNIT_MS = 60000UL;
 #endif
 
-const unsigned long DURATION_MEDIUM_MS = 5UL  * TIME_UNIT_MS; // setara 5 "menit"
-const unsigned long DURATION_HIGH_MS   = 15UL * TIME_UNIT_MS; // setara 15 "menit"
-const float DECAY_MULTIPLIER = 1.5; // laju pemulihan saat VPD kembali sehat
+const unsigned long DURATION_MEDIUM_MS = 5UL  * TIME_UNIT_MS;
+const unsigned long DURATION_HIGH_MS   = 15UL * TIME_UNIT_MS;
+const float DECAY_MULTIPLIER = 1.5;
 
 // ---------------- Globals ----------------
 DHT dht(DHTPIN, DHTTYPE);
@@ -105,13 +59,13 @@ WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 Servo ventServo;
 
-float g_airTemp = 25.0, g_airHum = 60.0;  // default realistis sebelum DHT baca
+float g_airTemp = 25.0, g_airHum = 60.0;
 float g_leafTemp = 25.0;
-float g_vpd = 0; // kPa
+float g_vpd = 0;
 int   g_soilPct = 0, g_lightPct = 0;
 String g_lastCmd = "None";
 
-double g_vpdAccumulatorMs = 0; // leaky-bucket accumulator (ms-equivalent)
+double g_vpdAccumulatorMs = 0;
 String g_riskLevel = "LOW";
 
 bool  g_fanOn = false;
@@ -122,7 +76,7 @@ int   g_menuPage = 0;
 bool  g_lastButtonState = HIGH;
 bool  g_buttonConfirmed = HIGH;
 unsigned long g_lastDebounce = 0;
-unsigned long g_buttonPressTime = 0;  // untuk deteksi long press
+unsigned long g_buttonPressTime = 0;
 unsigned long g_lastSensorRead = 0;
 unsigned long g_lastPublish = 0;
 
@@ -158,7 +112,7 @@ void setup() {
   ventServo.attach(SERVO_PIN);
   ventServo.write(0);
 
-  Wire.begin(); // SDA=D21, SCL=D22 (default ESP32)
+  Wire.begin();
   mlx.begin();
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -277,7 +231,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
   }
 
-  // Memaksa ESP32 langsung membalas status terbaru tanpa menunggu interval
   publishData();
   g_lastPublish = millis();
 }
@@ -287,31 +240,28 @@ void readSensors() {
   float t = dht.readTemperature();
   float h = dht.readHumidity();
   
-  // Trik Demo: Menambahkan "Noise" (fluktuasi acak) agar grafik terlihat hidup seperti sensor asli di alam
-  float tempNoise = random(-5, 6) / 10.0;  // fluktuasi -0.5 s/d +0.5 C
-  float humNoise  = random(-15, 16) / 10.0; // fluktuasi -1.5 s/d +1.5 %
+  float tempNoise = random(-5, 6) / 10.0;
+  float humNoise  = random(-15, 16) / 10.0;
   
   if (!isnan(t)) g_airTemp = t + tempNoise;
   if (!isnan(h)) g_airHum = h + humNoise;
 
   float leaf = mlx.readObjectTempC();
-  float leafNoise = random(-3, 4) / 10.0; // fluktuasi -0.3 s/d +0.3 C
+  float leafNoise = random(-3, 4) / 10.0;
   
-  // FIX v2.3: fallback unconditional
   if (!isnan(leaf) && leaf > 5.0) {
     g_leafTemp = leaf + leafNoise;
   } else {
-    g_leafTemp = g_airTemp - 0.2; // Daun normalnya sedikit lebih dingin dari udara karena transpirasi
+    g_leafTemp = g_airTemp - 0.2;
   }
 
   int soilRaw = analogRead(SOIL_PIN);
-  g_soilPct = map(soilRaw, 0, 4095, 200, 0) + random(-2, 3); // noise -2 s/d +2 cb
+  g_soilPct = map(soilRaw, 0, 4095, 200, 0) + random(-2, 3);
   if(g_soilPct < 0) g_soilPct = 0;
   if(g_soilPct > 200) g_soilPct = 200;
 
-  // FIX: LDR voltage divider
   int lightRaw = analogRead(LIGHT_PIN);
-  g_lightPct = map(lightRaw, 0, 4095, 100000, 0) + random(-100, 101); // noise -100 s/d +100 Lux
+  g_lightPct = map(lightRaw, 0, 4095, 100000, 0) + random(-100, 101);
   if(g_lightPct < 0) g_lightPct = 0;
 
   g_vpd = calcVPD(g_leafTemp, g_airTemp, g_airHum);
@@ -326,16 +276,16 @@ float calcVPD(float leafTempC, float airTempC, float airRH) {
   float svpLeaf = calcSVP(leafTempC);
   float svpAir  = calcSVP(airTempC);
   float avpAir  = svpAir * (airRH / 100.0);
-  return svpLeaf - avpAir; // kPa (leaf-to-air deficit)
+  return svpLeaf - avpAir;
 }
 
 void updateVpdAccumulator(unsigned long elapsedMs) {
   if (g_vpd < VPD_CRITICAL_THRESHOLD) {
-    g_vpdAccumulatorMs += elapsedMs * 2.0; // zona kritis, akumulasi 2x lebih cepat
+    g_vpdAccumulatorMs += elapsedMs * 2.0;
   } else if (g_vpd < VPD_LOW_THRESHOLD) {
-    g_vpdAccumulatorMs += elapsedMs;       // zona rawan
+    g_vpdAccumulatorMs += elapsedMs;
   } else {
-    g_vpdAccumulatorMs -= elapsedMs * DECAY_MULTIPLIER; // kondisi sehat -> meluruh
+    g_vpdAccumulatorMs -= elapsedMs * DECAY_MULTIPLIER;
     if (g_vpdAccumulatorMs < 0) g_vpdAccumulatorMs = 0;
   }
 
@@ -350,7 +300,6 @@ void computeFungalRisk() {
   else if (g_vpdAccumulatorMs >= DURATION_MEDIUM_MS) level = "MEDIUM";
   else level = "LOW";
 
-  // media terlalu basah (< 10 cb) -> kompensasi risiko busuk akar/media, naikkan 1 level
   if (g_soilPct < 10) {
     if (level == "LOW") level = "MEDIUM";
     else if (level == "MEDIUM") level = "HIGH";
@@ -418,20 +367,18 @@ void handleButton() {
 
   if ((now - g_lastDebounce) > 50) {
     if (reading == LOW && g_buttonConfirmed != LOW) {
-      // Catat waktu mulai tekan
       g_buttonPressTime = now;
     }
     if (reading == HIGH && g_buttonConfirmed == LOW) {
-      // Tombol dilepas — cek durasi tekan
       unsigned long dur = now - g_buttonPressTime;
       if (dur < 600) {
-        g_menuPage = (g_menuPage + 1) % 3;    // short press  → next page
+        g_menuPage = (g_menuPage + 1) % 3;
       } else if (dur < 2000) {
-        g_vpdAccumulatorMs = 0;               // medium press → RESET accumulator (demo)
+        g_vpdAccumulatorMs = 0;
         g_riskLevel = "LOW";
         Serial.println("[DEMO] Accumulator reset to 0");
       } else {
-        g_menuPage = (g_menuPage + 2) % 3;    // long press   → previous page
+        g_menuPage = (g_menuPage + 2) % 3;
       }
     }
     g_buttonConfirmed = reading;
@@ -503,7 +450,7 @@ void renderNetwork() {
 
   display.setCursor(0, 42);
   display.print("Cmd: ");
-  display.println(g_lastCmd.substring(0, 15)); // potong agar muat di layar
+  display.println(g_lastCmd.substring(0, 15));
 
   display.setCursor(0, 54);
   display.println("IP:" + WiFi.localIP().toString());
