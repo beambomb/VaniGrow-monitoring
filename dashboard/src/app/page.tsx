@@ -214,7 +214,7 @@ export default function Dashboard() {
 
             <Panel title="VPD (Vapor Pressure Deficit)">
               <p className={`text-3xl font-bold ${vpdClass}`}>
-                {latest?.vpd?.toFixed(3) ?? '—'}
+                {latest?.vpd !== undefined ? Math.max(0, latest.vpd).toFixed(3) : '—'}
                 <span className="text-[14px] text-gray-500 dark:text-[#4b5470] ml-1.5 font-normal">kPa</span>
               </p>
               <div className="mt-3 space-y-1.5">
