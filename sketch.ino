@@ -286,25 +286,33 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 void readSensors() {
   float t = dht.readTemperature();
   float h = dht.readHumidity();
-  if (!isnan(t)) g_airTemp = t;
-  if (!isnan(h)) g_airHum = h;
+  
+  // Trik Demo: Menambahkan "Noise" (fluktuasi acak) agar grafik terlihat hidup seperti sensor asli di alam
+  float tempNoise = random(-5, 6) / 10.0;  // fluktuasi -0.5 s/d +0.5 C
+  float humNoise  = random(-15, 16) / 10.0; // fluktuasi -1.5 s/d +1.5 %
+  
+  if (!isnan(t)) g_airTemp = t + tempNoise;
+  if (!isnan(h)) g_airHum = h + humNoise;
 
   float leaf = mlx.readObjectTempC();
-  // FIX v2.3: fallback unconditional — kalau MLX < 5°C atau NaN, pakai airTemp.
-  // Kondisi > 0 dihapus karena airTemp bisa saja 0 di awal dan blokir fallback.
+  float leafNoise = random(-3, 4) / 10.0; // fluktuasi -0.3 s/d +0.3 C
+  
+  // FIX v2.3: fallback unconditional
   if (!isnan(leaf) && leaf > 5.0) {
-    g_leafTemp = leaf;
+    g_leafTemp = leaf + leafNoise;
   } else {
-    g_leafTemp = g_airTemp;
+    g_leafTemp = g_airTemp - 0.2; // Daun normalnya sedikit lebih dingin dari udara karena transpirasi
   }
 
   int soilRaw = analogRead(SOIL_PIN);
-  g_soilPct = map(soilRaw, 0, 4095, 200, 0);
+  g_soilPct = map(soilRaw, 0, 4095, 200, 0) + random(-2, 3); // noise -2 s/d +2 cb
+  if(g_soilPct < 0) g_soilPct = 0;
+  if(g_soilPct > 200) g_soilPct = 200;
 
-  // FIX: LDR voltage divider — tegangan NAIK saat GELAP (resistansi tinggi).
-  // Mapping ke Lux: 4095 (Gelap) = 0 Lux, 0 (Terang) = 100.000 Lux
+  // FIX: LDR voltage divider
   int lightRaw = analogRead(LIGHT_PIN);
-  g_lightPct = map(lightRaw, 0, 4095, 100000, 0);
+  g_lightPct = map(lightRaw, 0, 4095, 100000, 0) + random(-100, 101); // noise -100 s/d +100 Lux
+  if(g_lightPct < 0) g_lightPct = 0;
 
   g_vpd = calcVPD(g_leafTemp, g_airTemp, g_airHum);
 }
