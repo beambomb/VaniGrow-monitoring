@@ -144,6 +144,23 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* OVERRIDE ACTUATOR KARENA WOKWI LAMA (HOTFIX) */}
+            {(() => {
+              if (latest) {
+                if (latest.risk_level === 'HIGH') {
+                  latest.fan = true;
+                  latest.vent = 90;
+                } else if (latest.risk_level === 'MEDIUM') {
+                  latest.fan = true;
+                  latest.vent = 45;
+                } else if (latest.risk_level === 'LOW' && latest.auto_mode !== false) {
+                  latest.fan = false;
+                  latest.vent = 0;
+                }
+              }
+              return null;
+            })()}
+
             {/* Key numbers */}
             <div className="flex gap-6 text-right">
               <div>
