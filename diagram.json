@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "author": "VaniGrow Team",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1",     "id": "esp",        "top": 280,   "left": 350,  "attrs": {} },
+    { "type": "wokwi-breadboard",           "id": "bb1",        "top": 470,   "left": 40,   "attrs": { "rows": "30" } },
+    { "type": "wokwi-ssd1306",              "id": "oled1",      "top": 707.5, "left": 232.3,"attrs": { "i2cAddress": "0x3c" } },
+    { "type": "wokwi-dht22",               "id": "dht1",       "top": 182.7, "left": 215.4,"attrs": {} },
+    { "type": "wokwi-mlx90614",            "id": "mlx1",       "top": 0,     "left": 650,  "attrs": {} },
+    { "type": "wokwi-potentiometer",       "id": "pot_soil",   "top": 280,   "left": 780,  "attrs": { "label": "SOIL" } },
+    { "type": "wokwi-photoresistor-sensor","id": "ldr1",       "top": 195.2, "left": 480.8,"attrs": {} },
+    { "type": "wokwi-resistor",            "id": "r1",         "top": 620,   "left": 90,   "attrs": { "value": "220" } },
+    { "type": "wokwi-led",                 "id": "led_alert",  "top": 600,   "left": 190,  "attrs": { "color": "red",   "label": "Fungal Risk Alert" } },
+    { "type": "wokwi-resistor",            "id": "r2",         "top": 620,   "left": 320,  "attrs": { "value": "220" } },
+    { "type": "wokwi-led",                 "id": "led_fan",    "top": 600,   "left": 420,  "attrs": { "color": "green", "label": "Fan/Dehumidifier" } },
+    { "type": "wokwi-servo",               "id": "servo_vent", "top": 600,   "left": 560,  "attrs": {} },
+    { "type": "wokwi-relay-module",         "id": "relay1",     "top": 480,   "left": 560,  "attrs": {} },
+    { "type": "wokwi-pushbutton",          "id": "btn_menu",   "top": 600,   "left": 780,  "attrs": { "color": "blue" } }
+  ],
+  "connections": [
+    [ "esp:3V3",   "dht1:VCC",  "red",    [] ],
+    [ "esp:GND.1", "dht1:GND",  "black",  [] ],
+    [ "esp:D4",    "dht1:SDA",  "green",  [] ],
+
+    [ "esp:3V3",   "mlx1:VCC",  "red",    [] ],
+    [ "esp:GND.1", "mlx1:GND",  "black",  [] ],
+    [ "esp:D21",   "mlx1:SDA",  "blue",   [] ],
+    [ "esp:D22",   "mlx1:SCL",  "yellow", [] ],
+
+    [ "esp:3V3",   "oled1:VCC", "red",    [] ],
+    [ "esp:GND.1", "oled1:GND", "black",  [] ],
+    [ "esp:D21",   "oled1:SDA", "blue",   [] ],
+    [ "esp:D22",   "oled1:SCL", "yellow", [] ],
+
+    [ "esp:3V3",   "pot_soil:VCC", "red",    [] ],
+    [ "esp:GND.1", "pot_soil:GND", "black",  [] ],
+    [ "esp:D34",   "pot_soil:SIG", "purple", [] ],
+
+    [ "esp:3V3",   "ldr1:VCC", "red",    [ "v-6.5", "h220.7", "v-230.4" ] ],
+    [ "esp:GND.1", "ldr1:GND", "black",  [ "h211.1", "v-208.2" ] ],
+    [ "esp:D35",   "ldr1:AO",  "green",  [ "h0" ] ],
+
+    [ "esp:D25",     "r1:1",        "green", [] ],
+    [ "r1:2",        "led_alert:A", "green", [] ],
+    [ "led_alert:C", "esp:GND.2",   "black", [] ],
+
+    [ "esp:D26",      "relay1:IN",    "green", [] ],
+    [ "esp:VIN",      "relay1:VCC",   "red",   [] ],
+    [ "esp:GND.2",    "relay1:GND",   "black", [] ],
+    [ "esp:3V3",      "relay1:NO",    "red",   [] ],
+    [ "relay1:COM",   "r2:1",         "green", [] ],
+    [ "r2:2",         "led_fan:A",    "green", [] ],
+    [ "led_fan:C",    "esp:GND.2",    "black", [] ],
+
+    [ "esp:D27",   "servo_vent:PWM", "green", [] ],
+    [ "esp:VIN",   "servo_vent:V+",  "red",   [] ],
+    [ "esp:GND.2", "servo_vent:GND", "black", [] ],
+
+    [ "esp:D32",     "btn_menu:1.l", "purple", [] ],
+    [ "btn_menu:2.l","esp:GND.2",    "black",  [] ]
+  ],
+  "dependencies": {}
+}

@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env
+.env.local
+.DS_Store
+*.log
+bridge/node_modules/
+dashboard/node_modules/
+dashboard/.next/
+bridge/.env
+dashboard/.env.local
