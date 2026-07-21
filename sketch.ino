@@ -265,8 +265,12 @@ void readSensors() {
   if(g_soilPct > 200) g_soilPct = 200;
 
   int lightRaw = analogRead(LIGHT_PIN);
-  g_lightPct = map(lightRaw, 0, 4095, 100000, 0) + random(-100, 101);
-  if(g_lightPct < 0) g_lightPct = 0;
+  // Rumus konversi ADC ke Lux untuk Sensor Wokwi LDR di ESP32 (3.3V)
+  float voltage = lightRaw / 4095.0 * 3.3;
+  if (voltage > 3.29) voltage = 3.29; // Mencegah division by zero
+  float resistance = 2000.0 * voltage / (3.3 - voltage); 
+  float lux = pow((50.0 * 1e3 * pow(10, 0.7)) / resistance, (1 / 0.7));
+  g_lightPct = (int)lux;
 
   g_vpd = calcVPD(g_leafTemp, g_airTemp, g_airHum);
 }
@@ -413,7 +417,7 @@ void renderOverview() {
   display.setCursor(0, 38);
   display.printf("Suhu daun  : %.1f C\n", g_leafTemp);
   display.setCursor(0, 49);
-  display.printf("Tanah:%dcb  Cahaya:%dlx\n", g_soilPct, g_lightPct);
+  display.printf("Soil:%dcb LDR:%dlx\n", g_soilPct, g_lightPct);
 }
 
 void renderFungalRisk() {
