@@ -1,3 +1,7 @@
+/*
+  VaniGrow v2 - VPD-based Fungal Risk Monitoring
+*/
+
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
@@ -351,8 +355,8 @@ void publishData() {
   doc["ts"] = millis();
 
   char buffer[320];
-  size_t n = serializeJson(doc, buffer);
-  mqttClient.publish(TOPIC_DATA.c_str(), buffer, n);
+  serializeJson(doc, buffer);
+  mqttClient.publish(TOPIC_DATA.c_str(), buffer);
 }
 
 // ---------------- Button / Menu ----------------
