@@ -223,7 +223,20 @@ export default function Dashboard() {
               />
               <MetricRow
                 label="Illuminance"
-                value={latest?.light?.toLocaleString() ?? '—'}
+                value={latest?.light !== undefined ? (
+                  latest.light > 1500 ? (
+                    (() => {
+                      let lightRaw = 4095 - (latest.light / 100000.0 * 4095);
+                      if (lightRaw < 0) lightRaw = 0;
+                      if (lightRaw > 4095) lightRaw = 4095;
+                      let voltage = lightRaw / 4095.0 * 3.3;
+                      if (voltage > 3.29) voltage = 3.29;
+                      let resistance = 2000.0 * voltage / (3.3 - voltage);
+                      let trueLux = Math.pow((50.0 * 1e3 * Math.pow(10, 0.7)) / resistance, (1 / 0.7));
+                      return isNaN(trueLux) ? '0' : Math.round(trueLux).toLocaleString();
+                    })()
+                  ) : latest.light.toLocaleString()
+                ) : '—'}
                 unit="Lux"
               />
             </Panel>
