@@ -15,6 +15,17 @@ const mqttClient = mqtt.connect('mqtt://broker.emqx.io:1883', {
   connectTimeout: 10000,
 });
 
+// ── Dummy HTTP Server for Render Free Tier ────────────────────────────────────
+// Render Web Services require binding to a port, otherwise the deployment fails.
+const http = require('http');
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('VaniGrow Bridge is running!\n');
+}).listen(port, () => {
+  console.log(`[Bridge] Dummy web server listening on port ${port}`);
+});
+
 mqttClient.on('connect', () => {
   console.log(`[MQTT] Connected to ${process.env.MQTT_BROKER}`);
   mqttClient.subscribe('vanigrow/+/data',   { qos: 1 });
