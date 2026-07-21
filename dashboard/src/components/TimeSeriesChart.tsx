@@ -49,7 +49,7 @@ export default function TimeSeriesChart({ data }: Props) {
           <Line yAxisId="vpd"  type="monotone" dataKey="vpd"      name="VPD (kPa)"  stroke="#06b6d4" dot={false} strokeWidth={2} isAnimationActive={false} />
           <Line yAxisId="temp" type="monotone" dataKey="air_temp" name="Suhu Udara" stroke="#f97316" dot={false} strokeWidth={1.5} isAnimationActive={false} />
           <Line yAxisId="temp" type="monotone" dataKey="air_hum"  name="Kelembapan" stroke="#8b5cf6" dot={false} strokeWidth={1.5} isAnimationActive={false} />
-          <Line yAxisId="temp" type="monotone" dataKey="soil"     name="Tanah %"    stroke="#22c55e" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+          <Line yAxisId="temp" type="monotone" dataKey="soil"     name="Tanah (cb)" stroke="#22c55e" dot={false} strokeWidth={1.5} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
