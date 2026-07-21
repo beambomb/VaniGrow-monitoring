@@ -18,7 +18,7 @@ const mqttClient = mqtt.connect('mqtt://broker.emqx.io:1883', {
 // ── Dummy HTTP Server for Render Free Tier ────────────────────────────────────
 // Render Web Services require binding to a port, otherwise the deployment fails.
 const http = require('http');
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('VaniGrow Bridge is running!\n');
@@ -57,6 +57,20 @@ mqttClient.on('message', async (topic, payload) => {
   }
 
   if (msgType === 'data') {
+    // FIX: Intercept salah hitung Lux dari Wokwi (karena user menolak rebuild)
+    if (data.light !== undefined) {
+      let lightRaw = 4095 - (data.light / 100000.0 * 4095);
+      if (lightRaw < 0) lightRaw = 0;
+      if (lightRaw > 4095) lightRaw = 4095;
+      
+      let voltage = lightRaw / 4095.0 * 3.3;
+      if (voltage > 3.29) voltage = 3.29;
+      let resistance = 2000.0 * voltage / (3.3 - voltage);
+      let trueLux = Math.pow((50.0 * 1e3 * Math.pow(10, 0.7)) / resistance, (1 / 0.7));
+      
+      data.light = isNaN(trueLux) ? 0 : Math.round(trueLux);
+    }
+
     await handleSensorData(deviceId, data);
   }
 });
