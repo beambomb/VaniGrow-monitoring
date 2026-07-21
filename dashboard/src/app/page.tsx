@@ -166,7 +166,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-[10px] text-gray-500 dark:text-[#4b5470] uppercase tracking-widest">VPD</p>
                 <p className={`text-2xl font-mono font-bold ${vpdClass}`}>
-                  {latest?.vpd?.toFixed(2) ?? '—'}
+                  {latest?.vpd !== undefined ? Math.max(0, latest.vpd).toFixed(2) : '—'}
                 </p>
                 <p className="text-[10px] text-gray-500 dark:text-[#4b5470]">kPa</p>
               </div>
